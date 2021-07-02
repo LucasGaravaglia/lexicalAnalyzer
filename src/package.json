@@ -3,5 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "author": "Lucas",
-  "license": "MIT"
+  "scripts":{
+    "start": "node ."
+  },
+  "license": "MIT",
+  "dependencies": {
+    "readline-sync": "^1.4.10"
+  }
 }

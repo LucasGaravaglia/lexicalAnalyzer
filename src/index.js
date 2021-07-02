@@ -1,5 +1,6 @@
 const { state, transition } = require("./automato");
 const { readFile, process } = require("./file");
+const readline = require("readline-sync");
 
 /**
  * Objeto que contém os estados da classe de token de marcação
@@ -23,12 +24,22 @@ const functionMarkerClass = () => {
  * Objeto que contém os estados da classe de token variáveis
  */
 const variableClass = () => {
-	var states = [new state("q0", false), new state("q1", true)];
+	var states = [
+		new state("q0", false),
+		new state("q1", true),
+		new state("Identificador mal formado", false),
+	];
 	states[0].newTransition("_", "q1", "q0");
 	states[0].newTransition("", "q1", "q0", /[a-z]/);
 	states[1].newTransition("_", "q1", "q1");
 	states[1].newTransition("", "q1", "q1", /[a-z]/i);
 	states[1].newTransition("", "q1", "q1", /[0-9]/i);
+	states[1].newTransition(
+		"",
+		"Identificador mal formado",
+		"q1",
+		/[!|@|#|$|%|¨|&|*|(|)|:|?|,]?/i
+	);
 
 	return { states };
 };
@@ -41,12 +52,31 @@ const numberClass = () => {
 		new state("q1", true),
 		new state("q2", false),
 		new state("q3", true),
+		new state("Numero mal formado", false),
 	];
 	states[0].newTransition("", "q1", "q0", /[0-9]/i);
 	states[1].newTransition("", "q1", "q1", /[0-9]/i);
 	states[1].newTransition(".", "q2", "q1");
+	states[1].newTransition(
+		"",
+		"Numero mal formado",
+		"q1",
+		/[a-z|!|@|#|$|%|¨|&|*|(|)|:|?|,|_|/|;|:]/i
+	);
 	states[2].newTransition("", "q3", "q2", /[0-9]/i);
+	states[2].newTransition(
+		"",
+		"Numero mal formado",
+		"q2",
+		/[a-z|!|@|#|$|%|¨|&|*|(|)|:|?|,|_|/|;|:]/i
+	);
 	states[3].newTransition("", "q3", "q3", /[0-9]/i);
+	states[3].newTransition(
+		"",
+		"Numero mal formado",
+		"q3",
+		/[a-z|!|@|#|$|%|¨|&|*|(|)|:|?|,|_|/|;|:]/i
+	);
 
 	return { states };
 };
@@ -176,6 +206,7 @@ const endLineClass = () => {
  * @param {states[]} states Vetor de estados ja instanciados.
  */
 const automaton = (states) => {
+	var error;
 	const indexOf = (name) => {
 		for (var i = 0; i < states.length; i++) {
 			if (states[i].getName() == name) return i;
@@ -188,14 +219,22 @@ const automaton = (states) => {
 			currentState = states[indexOf(currentState)].getNextState(
 				word[currentWordPosition]
 			);
-			if (currentState === false) {
+			if (currentState == false) {
 				return false;
 			}
+			if (currentState == "Identificador mal formado")
+				this.error = currentState;
+			else if (currentState == "Numero mal formado") this.error = currentState;
+			else this.error = "Nao pertence a nenhuma classe de token";
 		}
 		return states[indexOf(currentState)].isFinal;
 	};
+	const getError = () => {
+		return this.error;
+	};
 	return {
 		execute,
+		getError,
 	};
 };
 
@@ -217,16 +256,34 @@ const tokens = [
 	/** 11*/ variableClass(),
 ];
 
-const data = process(readFile("programa.c"));
-let valid = false;
-
-for (let j = 0; j < data.length; j++) {
-	for (let i = 0; i < tokens.length; i++) {
-		if (automaton(tokens[i].states).execute(data[j])) {
-			valid = true;
-			break;
+function analyzer(path) {
+	try {
+		const dataFile = readFile(path);
+		console.log("Código fonte: ");
+		dataFile.forEach((item) => {
+			console.log(item);
+		});
+		const data = process(dataFile);
+		let valid = false;
+		let lexicalError;
+		for (let j = 0; j < data.length; j++) {
+			for (let i = 0; i < tokens.length; i++) {
+				if (automaton(tokens[i].states).execute(data[j])) {
+					valid = true;
+					break;
+				}
+			}
+			if (!valid) console.log("-->", data[j], automaton().getError());
+			valid = false;
 		}
+		console.log("Concluído !");
+	} catch (err) {
+		console.log("Erro ao abrir o arquivo.");
+		console.log(err);
 	}
-	if (!valid) console.log(data[j], "Nao pertence a nenhuma classe");
-	valid = false;
 }
+
+const path = readline.question("Digite o caminho do arquivo: ");
+console.clear();
+analyzer(path);
+readline.question();
